@@ -2,6 +2,7 @@ import itertools
 import cmath
 import math
 import random
+import time
 
 from PIL import Image
 from colour import Color
@@ -25,9 +26,9 @@ def color_map(start, end, depth):
     return Color(start).range_to(Color(end), depth)
 
 
-def iterate_bounded(f, c, iterations, bound, initial=0+0j):
+def iterate_bounded(f, c, depth, bound, initial=0 + 0j):
     z = initial
-    for i in range(iterations):
+    for i in range(depth):
         z = f(z, c)
         if abs(z) > bound:
             return i + 1
@@ -48,12 +49,34 @@ def burning_ship_map(z, c):
     return (abs(z.real) + 1j*abs(z.imag))**2 + c
 
 
-def generate_buddhabrot_counters(f, height, xrange, yrange, depth, samples):
+def generate_buddhabrot_counters(f, height, xrange, yrange, depth, samples, initial=0+0j, log=False):
     size = height_to_size(height, xrange, yrange)
-    counters = [[0 for x in range(size[0])] for y in range(size[1])]
+    counters = [[0 for y in range(size[1])] for x in range(size[0])]
     for x in range(samples):
         sample = cmath.rect(random.uniform(0, 2), random.uniform(-math.pi, math.pi))
+        z = initial
+        orbit = []
+        for i in range(depth):
+            z = f(z, sample)
+            orbit.append(z)
+            if abs(z) > 2:
+                for z in orbit:
+                    pixel = complex_to_pixel(z, size, xrange, yrange)
+                    if 0 <= pixel[0] < len(counters) and 0 <= pixel[1] < len(counters[0]):
+                        counters[pixel[0]][pixel[1]] += 1
+                break
+    if log:
+        with open(f"buddha_{height}p_{depth}i_{samples}s_{int(time.time())}.txt", "w") as f:
+            f.write(repr(counters))
+    return counters
 
+
+def grayscale_from_counters(counters):
+    max_count = max(max(column) for column in counters)
+    im = Image.new("L", (len(counters), len(counters[0])))
+    for pixel in itertools.product(range(len(counters)), range(len(counters[0]))):
+        im.putpixel(pixel, int(counters[pixel[0]][pixel[1]] * 255 / max_count))
+    return im
 
 
 def generate_fractal_image(f, height, xrange, yrange, depth):
@@ -66,8 +89,5 @@ def generate_fractal_image(f, height, xrange, yrange, depth):
 
 
 if __name__ == "__main__":
-    p = (300, 42)
-    c = normalize_pixel(p, (800, 600), (-2, 1), (-1, 1))
-    print(c)
-    p = complex_to_pixel(c, (800, 600), (-2, 1), (-1, 1))
-    print(p)
+    counters = generate_buddhabrot_counters(get_multibrot_map(6), 1080, (-2, 1), (-1, 1), 20, 10000000)
+    grayscale_from_counters(counters).save("multibuddha6.png")
