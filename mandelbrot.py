@@ -71,11 +71,11 @@ def generate_buddhabrot_counters(f, height, xrange, yrange, depth, samples, init
     return counters
 
 
-def grayscale_from_counters(counters):
+def grayscale_from_counters(counters, range_adjust=lambda x: x):
     max_count = max(max(column) for column in counters)
     im = Image.new("L", (len(counters), len(counters[0])))
     for pixel in itertools.product(range(len(counters)), range(len(counters[0]))):
-        im.putpixel(pixel, int(counters[pixel[0]][pixel[1]] * 255 / max_count))
+        im.putpixel(pixel, int(range_adjust(counters[pixel[0]][pixel[1]] / max_count) * 255))
     return im
 
 
@@ -89,5 +89,13 @@ def generate_fractal_image(f, height, xrange, yrange, depth):
 
 
 if __name__ == "__main__":
-    counters = generate_buddhabrot_counters(get_multibrot_map(6), 1080, (-2, 1), (-1, 1), 20, 10000000)
-    grayscale_from_counters(counters).save("multibuddha6.png")
+    files = ["buddha_1080p_20i_10000000s_1548340008.txt", "buddha_1080p_50i_10000000s_1571132560.txt", "buddha_1080p_500i_10000000s_1571133152.txt"]
+    counters = []
+    for name in files:
+        with open(name) as f:
+            counters.append(eval(f.read()))
+    # for i, perm in enumerate(itertools.permutations(counters)):
+    #    image = Image.merge("RGB", [grayscale_from_counters(counter) for counter in perm])
+    #    image.save(f"nebulabrot{i}.png")
+    for i, counter in enumerate(counters):
+        grayscale_from_counters(counter, lambda x: math.log1p(x) / math.log(2)).save(f"buddha_log_{i}.png")
