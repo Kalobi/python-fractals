@@ -3,9 +3,15 @@ import cmath
 import math
 import random
 import time
+import argparse
 
 from PIL import Image
 from colour import Color
+import matplotlib.pyplot as plt
+import numpy as np
+
+class InvalidOptionsException(Exception):
+    pass
 
 
 def normalize_pixel(pixel, size, xrange, yrange):
@@ -26,10 +32,10 @@ def color_map(start, end, depth):
     return Color(start).range_to(Color(end), depth)
 
 
-def iterate_bounded(f, c, depth, bound, initial=0 + 0j):
+def iterate_bounded(fun, c, depth, bound, initial=0 + 0j):
     z = initial
     for i in range(depth):
-        z = f(z, c)
+        z = fun(z, c)
         if abs(z) > bound:
             return i + 1
     return 0
@@ -79,23 +85,87 @@ def grayscale_from_counters(counters, range_adjust=lambda x: x):
     return im
 
 
-def generate_fractal_image(f, height, xrange, yrange, depth):
+def generate_fractal_image(fun, height, xrange, yrange, depth):
     image = Image.new("RGB", height_to_size(height, xrange, yrange), "white")
     for pixel in itertools.product(range(image.width), range(image.height)):
-        iterations = iterate_bounded(f, normalize_pixel(pixel, image.size, xrange, yrange), depth, 2)
+        iterations = iterate_bounded(fun, normalize_pixel(pixel, image.size, xrange, yrange), depth, 2)
         if not iterations:
             image.putpixel(pixel, (0, 0, 0))
     return image
 
 
+def parsed_gen_fractal(args):
+    fun_specifier = args.fractal
+    if fun_specifier == "mandelbrot":
+        fun = mandelbrot_map
+    elif fun_specifier == "multibrot":
+        fun = get_multibrot_map(args.fo[0])
+    elif fun_specifier == "burning_ship":
+        fun = burning_ship_map
+    else:
+        raise Exception("Invalid fractal generator")
+    image = generate_fractal_image(fun, args.height, args.real_range, args.imag_range,
+                                   args.depth)
+    with args.output as f:
+        image.save(f)
+
+
+def main():
+    # top-level parser
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers()
+
+    # subparser for "generate"
+    parser_gen_fractal = subparsers.add_parser("generate", aliases=["gen"])
+    parser_gen_fractal.add_argument("--height",
+                                    help="height of the resulting image in pixels",
+                                    type=int, default=1080)
+    parser_gen_fractal.add_argument("--real-range", "--xrange", "-x",
+                                    help="ends of the real axis",
+                                    nargs=2, type=float, default=[-2, 1])
+    parser_gen_fractal.add_argument("--imag-range", "--yrange", "-y", "-i",
+                                    help="ends of the imaginary axis",
+                                    nargs=2, type=float, default=[-1, 1])
+    parser_gen_fractal.add_argument("-f", "--fractal", "--function",
+                                    help="which fractal should be generated",
+                                    choices=["mandelbrot", "multibrot", "burning_ship"],
+                                    default="mandelbrot")
+    parser_gen_fractal.add_argument("--fo", "--fractal-options",
+                                    help="additional options for the fractal generating function",
+                                    nargs="*", type=int)
+    parser_gen_fractal.add_argument("-d", "--depth",
+                                    help="iteration depth", type=int,
+                                    default=50)
+    parser_gen_fractal.add_argument("output",
+                                    help="location where the image should be saved",
+                                    type=argparse.FileType("wb"))
+    parser_gen_fractal.set_defaults(fun=parsed_gen_fractal)
+
+    # parse and dispatch
+    args = parser.parse_args()
+    try:
+        args.fun(args)
+    except InvalidOptionsException as e:
+        parser.error(str(e))
+
+
 if __name__ == "__main__":
-    files = ["buddha_1080p_20i_10000000s_1548340008.txt", "buddha_1080p_50i_10000000s_1571132560.txt", "buddha_1080p_500i_10000000s_1571133152.txt"]
-    counters = []
-    for name in files:
-        with open(name) as f:
-            counters.append(eval(f.read()))
+    main()
+    # with open("buddha_1080p_20i_10000000s_1548340008.txt") as f:
+    #    counters = eval(f.read())
+    # values = list(itertools.chain.from_iterable(counters))
+    # print(max(values))
+    # print(np.percentile(values, 99.9))
+    # n, bins, patches = plt.hist(values, 256)
+    # print(n)
+    # plt.show()
+    # files = ["buddha_1080p_20i_10000000s_1548340008.txt", "buddha_1080p_50i_10000000s_1571132560.txt", "buddha_1080p_500i_10000000s_1571133152.txt"]
+    # counters = []
+    # for name in files:
+    #    with open(name) as f:
+    #        counters.append(eval(f.read()))
     # for i, perm in enumerate(itertools.permutations(counters)):
     #    image = Image.merge("RGB", [grayscale_from_counters(counter) for counter in perm])
     #    image.save(f"nebulabrot{i}.png")
-    for i, counter in enumerate(counters):
-        grayscale_from_counters(counter, lambda x: math.log1p(x) / math.log(2)).save(f"buddha_log_{i}.png")
+    # for i, counter in enumerate(counters):
+    #    grayscale_from_counters(counter, lambda x: math.log1p(x) / math.log(2)).save(f"buddha_log_{i}.png")

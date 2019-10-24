@@ -107,3 +107,4 @@ venv.bak/
 
 *.txt
 *.png
+/venv38/
