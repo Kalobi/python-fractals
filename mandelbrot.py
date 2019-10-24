@@ -3,6 +3,7 @@ import cmath
 import math
 import random
 import time
+import sys
 import argparse
 
 from PIL import Image
@@ -116,23 +117,26 @@ def main():
     subparsers = parser.add_subparsers()
 
     # subparser for "generate"
-    parser_gen_fractal = subparsers.add_parser("generate", aliases=["gen"])
+    parser_gen_fractal = subparsers.add_parser("generate", aliases=["gen"],
+                                               help="generate an image of a Mandelbrot-like set")
     parser_gen_fractal.add_argument("--height",
                                     help="height of the resulting image in pixels",
                                     type=int, default=1080)
     parser_gen_fractal.add_argument("--real-range", "--xrange", "-x",
                                     help="ends of the real axis",
-                                    nargs=2, type=float, default=[-2, 1])
+                                    nargs=2, type=float, default=[-2, 1],
+                                    metavar=("MIN", "MAX"))
     parser_gen_fractal.add_argument("--imag-range", "--yrange", "-y", "-i",
                                     help="ends of the imaginary axis",
-                                    nargs=2, type=float, default=[-1, 1])
+                                    nargs=2, type=float, default=[-1, 1],
+                                    metavar=("MIN", "MAX"))
     parser_gen_fractal.add_argument("-f", "--fractal", "--function",
                                     help="which fractal should be generated",
                                     choices=["mandelbrot", "multibrot", "burning_ship"],
                                     default="mandelbrot")
     parser_gen_fractal.add_argument("--fo", "--fractal-options",
                                     help="additional options for the fractal generating function",
-                                    nargs="*", type=int)
+                                    nargs="*", type=int, metavar="OPTION")
     parser_gen_fractal.add_argument("-d", "--depth",
                                     help="iteration depth", type=int,
                                     default=50)
@@ -142,6 +146,9 @@ def main():
     parser_gen_fractal.set_defaults(fun=parsed_gen_fractal)
 
     # parse and dispatch
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(1)
     args = parser.parse_args()
     try:
         args.fun(args)
