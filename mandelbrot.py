@@ -58,8 +58,7 @@ def burning_ship_map(z, c):
     return (abs(z.real) + 1j * abs(z.imag)) ** 2 + c
 
 
-def generate_buddhabrot_counters(f, height, xrange, yrange, depth, samples, initial=0 + 0j,
-                                 log=False):
+def generate_buddhabrot_counters(f, height, xrange, yrange, depth, samples, initial=0 + 0j):
     size = height_to_size(height, xrange, yrange)
     counters = [[0 for y in range(size[1])] for x in range(size[0])]
     for x in range(samples):
@@ -75,9 +74,6 @@ def generate_buddhabrot_counters(f, height, xrange, yrange, depth, samples, init
                     if 0 <= pixel[0] < len(counters) and 0 <= pixel[1] < len(counters[0]):
                         counters[pixel[0]][pixel[1]] += 1
                 break
-    if log:
-        with open(f"buddha_{height}p_{depth}i_{samples}s_{int(time.time())}.txt", "w") as f:
-            f.write(repr(counters))
     return counters
 
 
@@ -108,7 +104,7 @@ def decode_function(args):
     elif fun_specifier == "burning_ship":
         return burning_ship_map
     else:
-        raise Exception("Invalid fractal generator")
+        raise InvalidOptionsException("Invalid fractal generator")
 
 
 def parsed_gen_fractal(args):
