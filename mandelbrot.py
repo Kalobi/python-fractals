@@ -133,7 +133,9 @@ def parsed_counter_images(args):
     else:
         with contextlib.ExitStack() as stack:
             files = [stack.enter_context(f) for f in args.rgb]
-            image = Image.merge("RGB", [grayscale_from_counters(i) for i in files])
+            image = Image.merge("RGB", [grayscale_from_counters(eval(i.read())) for i in files])
+    with args.output as f:
+        image.save(f)
 
 
 def main():
@@ -193,6 +195,9 @@ def main():
     counters_in.add_argument("--rgb", help="generate a colored image by "
                                            + "using three grids as rgb channels",
                              type=argparse.FileType("r"), nargs=3)
+    parser_counter_images.add_argument("output",
+                                       help="location where the output file should be saved",
+                                       type=argparse.FileType("wb"))
     parser_counter_images.set_defaults(fun=parsed_counter_images)
 
     # parse and dispatch
