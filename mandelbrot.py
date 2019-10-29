@@ -11,6 +11,7 @@ from colour import Color
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 class InvalidOptionsException(Exception):
     pass
 
@@ -43,20 +44,22 @@ def iterate_bounded(fun, c, depth, bound, initial=0 + 0j):
 
 
 def mandelbrot_map(z, c):
-    return z**2 + c
+    return z ** 2 + c
 
 
 def get_multibrot_map(d):
     def multibrot_map(z, c):
-        return z**d + c
+        return z ** d + c
+
     return multibrot_map
 
 
 def burning_ship_map(z, c):
-    return (abs(z.real) + 1j*abs(z.imag))**2 + c
+    return (abs(z.real) + 1j * abs(z.imag)) ** 2 + c
 
 
-def generate_buddhabrot_counters(f, height, xrange, yrange, depth, samples, initial=0+0j, log=False):
+def generate_buddhabrot_counters(f, height, xrange, yrange, depth, samples, initial=0 + 0j,
+                                 log=False):
     size = height_to_size(height, xrange, yrange)
     counters = [[0 for y in range(size[1])] for x in range(size[0])]
     for x in range(samples):
@@ -89,26 +92,41 @@ def grayscale_from_counters(counters, range_adjust=lambda x: x):
 def generate_fractal_image(fun, height, xrange, yrange, depth):
     image = Image.new("RGB", height_to_size(height, xrange, yrange), "white")
     for pixel in itertools.product(range(image.width), range(image.height)):
-        iterations = iterate_bounded(fun, normalize_pixel(pixel, image.size, xrange, yrange), depth, 2)
+        iterations = iterate_bounded(fun, normalize_pixel(pixel, image.size, xrange, yrange),
+                                     depth, 2)
         if not iterations:
             image.putpixel(pixel, (0, 0, 0))
     return image
 
 
-def parsed_gen_fractal(args):
+def decode_function(args):
     fun_specifier = args.fractal
     if fun_specifier == "mandelbrot":
-        fun = mandelbrot_map
+        return mandelbrot_map
     elif fun_specifier == "multibrot":
-        fun = get_multibrot_map(args.fo[0])
+        return get_multibrot_map(args.fo[0] if args.fo else 4)
     elif fun_specifier == "burning_ship":
-        fun = burning_ship_map
+        return burning_ship_map
     else:
         raise Exception("Invalid fractal generator")
+
+
+def parsed_gen_fractal(args):
+    fun = decode_function(args)
     image = generate_fractal_image(fun, args.height, args.real_range, args.imag_range,
                                    args.depth)
     with args.output as f:
         image.save(f)
+
+
+def parsed_buddha(args):
+    fun = decode_function(args)
+    counters = generate_buddhabrot_counters(fun, args.height, args.real_range,
+                                            args.imag_range, args.depth, args.samples)
+    with (args.output if not args.autogen_output
+          else open(f"buddha_{args.fractal}{args.height}p_{args.depth}i"
+                    + f"_{args.samples}s_{int(time.time())}.txt", "w")) as f:
+        f.write(repr(counters))
 
 
 def main():
@@ -119,31 +137,45 @@ def main():
     # subparser for "generate"
     parser_gen_fractal = subparsers.add_parser("generate", aliases=["gen"],
                                                help="generate an image of a Mandelbrot-like set")
-    parser_gen_fractal.add_argument("--height",
-                                    help="height of the resulting image in pixels",
-                                    type=int, default=1080)
-    parser_gen_fractal.add_argument("--real-range", "--xrange", "-x",
-                                    help="ends of the real axis",
-                                    nargs=2, type=float, default=[-2, 1],
-                                    metavar=("MIN", "MAX"))
-    parser_gen_fractal.add_argument("--imag-range", "--yrange", "-y", "-i",
-                                    help="ends of the imaginary axis",
-                                    nargs=2, type=float, default=[-1, 1],
-                                    metavar=("MIN", "MAX"))
-    parser_gen_fractal.add_argument("-f", "--fractal", "--function",
-                                    help="which fractal should be generated",
-                                    choices=["mandelbrot", "multibrot", "burning_ship"],
-                                    default="mandelbrot")
-    parser_gen_fractal.add_argument("--fo", "--fractal-options",
-                                    help="additional options for the fractal generating function",
-                                    nargs="*", type=int, metavar="OPTION")
-    parser_gen_fractal.add_argument("-d", "--depth",
-                                    help="iteration depth", type=int,
-                                    default=50)
+    # subparser for "buddhacounters"
+    parser_buddhacounters = subparsers.add_parser("buddhacounters", aliases=["counters"],
+                                                  help="generate a text file of counters for a "
+                                                       + "Buddhabrot-like image")
+    generators = [parser_gen_fractal, parser_buddhacounters]
+    for g in generators:
+        g.add_argument("--height",
+                       help="height of the resulting image in pixels",
+                       type=int, default=1080)
+        g.add_argument("--real-range", "--xrange", "-x",
+                       help="ends of the real axis",
+                       nargs=2, type=float, default=[-2, 1],
+                       metavar=("MIN", "MAX"))
+        g.add_argument("--imag-range", "--yrange", "-y", "-i",
+                       help="ends of the imaginary axis",
+                       nargs=2, type=float, default=[-1, 1],
+                       metavar=("MIN", "MAX"))
+        g.add_argument("-f", "--fractal", "--function",
+                       help="which fractal should be generated",
+                       choices=["mandelbrot", "multibrot", "burning_ship"],
+                       default="mandelbrot")
+        g.add_argument("--fo", "--fractal-options",
+                       help="additional options for the fractal generating function",
+                       nargs="*", type=int, metavar="OPTION")
+        g.add_argument("-d", "--depth",
+                       help="iteration depth", type=int,
+                       default=50)
     parser_gen_fractal.add_argument("output",
-                                    help="location where the image should be saved",
+                                    help="location where the output file should be saved",
                                     type=argparse.FileType("wb"))
+    parser_buddhacounters.add_argument("samples", help="number of random samples", type=int)
+    buddha_out = parser_buddhacounters.add_mutually_exclusive_group(required=True)
+    buddha_out.add_argument("--output", "-o",
+                            help="location where the output file should be saved",
+                            type=argparse.FileType("w"))
+    buddha_out.add_argument("--autogen-output", "-a", help="automatically name output file",
+                            action="store_true")
     parser_gen_fractal.set_defaults(fun=parsed_gen_fractal)
+    parser_buddhacounters.set_defaults(fun=parsed_buddha)
 
     # parse and dispatch
     if len(sys.argv) == 1:
@@ -166,7 +198,9 @@ if __name__ == "__main__":
     # n, bins, patches = plt.hist(values, 256)
     # print(n)
     # plt.show()
-    # files = ["buddha_1080p_20i_10000000s_1548340008.txt", "buddha_1080p_50i_10000000s_1571132560.txt", "buddha_1080p_500i_10000000s_1571133152.txt"]
+    # files = ["buddha_1080p_20i_10000000s_1548340008.txt",
+    #          "buddha_1080p_50i_10000000s_1571132560.txt",
+    #          "buddha_1080p_500i_10000000s_1571133152.txt"]
     # counters = []
     # for name in files:
     #    with open(name) as f:
@@ -175,4 +209,5 @@ if __name__ == "__main__":
     #    image = Image.merge("RGB", [grayscale_from_counters(counter) for counter in perm])
     #    image.save(f"nebulabrot{i}.png")
     # for i, counter in enumerate(counters):
-    #    grayscale_from_counters(counter, lambda x: math.log1p(x) / math.log(2)).save(f"buddha_log_{i}.png")
+    #    grayscale_from_counters(counter,
+    #                            lambda x: math.log1p(x) / math.log(2)).save(f"buddha_log_{i}.png")
