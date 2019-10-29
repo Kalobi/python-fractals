@@ -5,6 +5,7 @@ import random
 import time
 import sys
 import argparse
+import contextlib
 
 from PIL import Image
 from colour import Color
@@ -125,6 +126,16 @@ def parsed_buddha(args):
         f.write(repr(counters))
 
 
+def parsed_counter_images(args):
+    if args.grayscale:
+        with args.grayscale as f:
+            image = grayscale_from_counters(eval(f.read()))
+    else:
+        with contextlib.ExitStack() as stack:
+            files = [stack.enter_context(f) for f in args.rgb]
+            image = Image.merge("RGB", [grayscale_from_counters(i) for i in files])
+
+
 def main():
     # top-level parser
     parser = argparse.ArgumentParser()
@@ -172,6 +183,17 @@ def main():
                             action="store_true")
     parser_gen_fractal.set_defaults(fun=parsed_gen_fractal)
     parser_buddhacounters.set_defaults(fun=parsed_buddha)
+
+    # parser for counter images
+    parser_counter_images = subparsers.add_parser("imagefromcounters", aliases=["image"],
+                                                  help="generate an image from a grid of values")
+    counters_in = parser_counter_images.add_mutually_exclusive_group(required=True)
+    counters_in.add_argument("--grayscale", "-g", help="generate a grayscale image from one grid",
+                             type=argparse.FileType("r"))
+    counters_in.add_argument("--rgb", help="generate a colored image by "
+                                           + "using three grids as rgb channels",
+                             type=argparse.FileType("r"), nargs=3)
+    parser_counter_images.set_defaults(fun=parsed_counter_images)
 
     # parse and dispatch
     if len(sys.argv) == 1:
