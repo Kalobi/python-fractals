@@ -78,11 +78,15 @@ def generate_buddhabrot_counters(f, height, xrange, yrange, depth, samples, init
     return counters
 
 
-def grayscale_from_counters(counters, range_adjust=lambda x: x):
+def counters_to_brightnesses(counters, range_adjust=lambda x: x):
     max_count = max(max(column) for column in counters)
-    im = Image.new("L", (len(counters), len(counters[0])))
-    for pixel in itertools.product(range(len(counters)), range(len(counters[0]))):
-        im.putpixel(pixel, int(range_adjust(counters[pixel[0]][pixel[1]] / max_count) * 255))
+    return list(map(lambda row: list(map(lambda count: int(range_adjust(count / max_count) * 255), row)), counters))
+
+
+def grayscale_from_counters(counters, range_adjust=lambda x: x):
+    im = Image.new("L", (len(counters[0]), len(counters)))
+    im.putdata(list(itertools.chain.from_iterable(counters_to_brightnesses(counters, range_adjust))))
+    im = im.transpose(Image.TRANSPOSE)
     return im
 
 
@@ -191,10 +195,11 @@ def main():
                                                   help="generate an image from a grid of values")
     counters_in = parser_counter_images.add_mutually_exclusive_group(required=True)
     counters_in.add_argument("--grayscale", "-g", help="generate a grayscale image from one grid",
-                             type=argparse.FileType("r"))
+                             type=argparse.FileType("r"), metavar="COUNTERS")
     counters_in.add_argument("--rgb", help="generate a colored image by "
                                            + "using three grids as rgb channels",
-                             type=argparse.FileType("r"), nargs=3)
+                             type=argparse.FileType("r"), nargs=3,
+                             metavar=("RED", "GREEN", "BLUE"))
     parser_counter_images.add_argument("output",
                                        help="location where the output file should be saved",
                                        type=argparse.FileType("wb"))
